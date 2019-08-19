@@ -31,41 +31,120 @@ import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
-@Ignore
 public class MicroBenchmarkTest extends BaseEvaluatorTest {
 
   private double toleranceRatio = 4.0;
 
   @Test
-  public void testAdd3() throws Exception {
+  public void testAdd10() throws Exception {
     Field x = Field.nullable("x", int32);
     Field n2x = Field.nullable("n2x", int32);
     Field n3x = Field.nullable("n3x", int32);
+    Field n4x = Field.nullable("n4x", int32);
+    Field n5x = Field.nullable("n5x", int32);
+    Field n6x = Field.nullable("n6x", int32);
+    Field n7x = Field.nullable("n7x", int32);
+    Field n8x = Field.nullable("n8x", int32);
+    Field n9x = Field.nullable("n9x", int32);
+    Field n10x = Field.nullable("n10x", int32);
 
     // x + n2x + n3x
-    TreeNode add1 =
-        TreeBuilder.makeFunction(
-            "add", Lists.newArrayList(TreeBuilder.makeField(x), TreeBuilder.makeField(n2x)), int32);
     TreeNode add =
         TreeBuilder.makeFunction(
-            "add", Lists.newArrayList(add1, TreeBuilder.makeField(n3x)), int32);
-    ExpressionTree expr = TreeBuilder.makeExpression(add, x);
+            "add", Lists.newArrayList(TreeBuilder.makeField(x), TreeBuilder.makeField(n2x)), int32);
+    TreeNode add1 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add, TreeBuilder.makeField(n3x)), int32);
+    TreeNode add2 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add1, TreeBuilder.makeField(n4x)), int32);
+    TreeNode add3 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add2, TreeBuilder.makeField(n5x)), int32);
+    TreeNode add4 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add3, TreeBuilder.makeField(n6x)), int32);
+    TreeNode add5 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add4, TreeBuilder.makeField(n7x)), int32);
+    TreeNode add6 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add5, TreeBuilder.makeField(n8x)), int32);
+    TreeNode add7 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add6, TreeBuilder.makeField(n9x)), int32);
+    TreeNode add8 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add7, TreeBuilder.makeField(n10x)), int32);
+    ExpressionTree expr = TreeBuilder.makeExpression(add8, x);
 
-    List<Field> cols = Lists.newArrayList(x, n2x, n3x);
+    List<Field> cols = Lists.newArrayList(x, n2x, n3x, n4x, n5x, n6x, n7x, n8x, n9x, n10x);
     Schema schema = new Schema(cols);
 
     long timeTaken = timedProject(new Int32DataAndVectorGenerator(allocator),
         schema,
         Lists.newArrayList(expr),
-        1 * MILLION, 16 * THOUSAND,
+        200 * MILLION, 16 * THOUSAND,
         4);
-    System.out.println("Time taken for projecting 1m records of add3 is " + timeTaken + "ms");
-    Assert.assertTrue(timeTaken <= 13 * toleranceRatio);
+    System.out.println("Time taken for projecting 200m records of add10 is " + timeTaken + "ms");
   }
 
   @Test
+  public void testAdd10_Float() throws Exception {
+    Field x = Field.nullable("x", float64);
+    Field n2x = Field.nullable("n2x", float64);
+    Field n3x = Field.nullable("n3x", float64);
+    Field n4x = Field.nullable("n4x", float64);
+    Field n5x = Field.nullable("n5x", float64);
+    Field n6x = Field.nullable("n6x", float64);
+    Field n7x = Field.nullable("n7x", float64);
+    Field n8x = Field.nullable("n8x", float64);
+    Field n9x = Field.nullable("n9x", float64);
+    Field n10x = Field.nullable("n10x", float64);
+
+    // x + n2x + n3x
+    TreeNode add =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(TreeBuilder.makeField(x), TreeBuilder.makeField(n2x)), float64);
+    TreeNode add1 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add, TreeBuilder.makeField(n3x)), float64);
+    TreeNode add2 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add1, TreeBuilder.makeField(n4x)), float64);
+    TreeNode add3 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add2, TreeBuilder.makeField(n5x)), float64);
+    TreeNode add4 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add3, TreeBuilder.makeField(n6x)), float64);
+    TreeNode add5 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add4, TreeBuilder.makeField(n7x)), float64);
+    TreeNode add6 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add5, TreeBuilder.makeField(n8x)), float64);
+    TreeNode add7 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add6, TreeBuilder.makeField(n9x)), float64);
+    TreeNode add8 =
+        TreeBuilder.makeFunction(
+            "add", Lists.newArrayList(add7, TreeBuilder.makeField(n10x)), float64);
+    ExpressionTree expr = TreeBuilder.makeExpression(add8, x);
+
+    List<Field> cols = Lists.newArrayList(x, n2x, n3x, n4x, n5x, n6x, n7x, n8x, n9x, n10x);
+    Schema schema = new Schema(cols);
+
+    long timeTaken = timedProject(new Int32DataAndVectorGenerator(allocator),
+        schema,
+        Lists.newArrayList(expr),
+        200 * MILLION, 16 * THOUSAND,
+        4);
+    System.out.println("Time taken for projecting 200m records of add10 is " + timeTaken + "ms");
+  }
+  /*
+  @Test
   public void testIf() throws Exception {
-    /*
      * when x < 10 then 0
      * when x < 20 then 1
      * when x < 30 then 2
@@ -87,7 +166,6 @@ public class MicroBenchmarkTest extends BaseEvaluatorTest {
      * when x < 190 then 18
      * when x < 200 then 19
      * else 20
-     */
     Field x = Field.nullable("x", int32);
     TreeNode xNode = TreeBuilder.makeField(x);
 
@@ -148,4 +226,7 @@ public class MicroBenchmarkTest extends BaseEvaluatorTest {
     System.out.println("Time taken for filtering 10m records of a+b<c is " + timeTaken + "ms");
     Assert.assertTrue(timeTaken <= 12 * toleranceRatio);
   }
+  */
+
+
 }

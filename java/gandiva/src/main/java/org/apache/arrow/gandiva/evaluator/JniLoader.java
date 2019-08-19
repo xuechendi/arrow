@@ -67,6 +67,7 @@ class JniLoader {
           throws IOException, GandivaException {
     final String libraryToLoad = System.mapLibraryName(LIBRARY_NAME);
     final File libraryFile = moveFileFromJarToTemp(tmpDir, libraryToLoad);
+    System.out.println("loadGandivaLibraryFromJar path " + libraryFile.getAbsolutePath());
     System.load(libraryFile.getAbsolutePath());
   }
 
