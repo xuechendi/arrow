@@ -3,10 +3,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <memory>
 #include <sstream>  // IWYU pragma: keep
 #include <string>
-#include <thread>
 #include <vector>
 #include <numeric>
 #include<stdlib.h>

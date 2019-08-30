@@ -7,8 +7,6 @@
 #include <arrow/status.h>
 #include <arrow/array.h>
 #include <cstring>
-#include <parquet/file_reader.h>
-#include <parquet/arrow/reader.h>
 
 namespace arrow {
 namespace io {

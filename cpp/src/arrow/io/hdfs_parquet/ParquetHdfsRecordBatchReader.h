@@ -3,6 +3,9 @@
 
 #include "ParquetHdfsReader.h"
 #include <arrow/record_batch.h>
+#include <parquet/properties.h>
+#include <parquet/file_reader.h>
+#include <parquet/arrow/reader.h>
 #include <mutex>
 
 namespace arrow {
@@ -14,18 +17,17 @@ public:
       ParquetHdfsReader* hdfsReader,
       std::vector<int>& column_indices,
       std::vector<int>& row_group_indices,
-      long batch_size = parquet::arrow::DEFAULT_BATCH_SIZE);
+      long batch_size = 4096);
   ParquetHdfsRecordBatchReader(
       ParquetHdfsReader* hdfsReader,
       std::vector<int>& column_indices,
       long start_pos,
       long end_pos,
-      long batch_size = parquet::arrow::DEFAULT_BATCH_SIZE);
+      long batch_size = 4096);
   ~ParquetHdfsRecordBatchReader();
   std::vector<int> getRowGroupIndices(
       int num_row_groups, long start_pos, long end_pos);
   Status getRecordBatch(
-      std::shared_ptr<::arrow::RecordBatchReader>* rb_reader,
       std::vector<int>& row_group_indices,
       std::vector<int>& column_indices);
   Status readNext(std::shared_ptr<::arrow::RecordBatch>* out);
@@ -36,9 +38,9 @@ public:
 private:
   MemoryPool* pool;
   std::mutex threadMtx;
-  parquet::arrow::ArrowReaderProperties properties;
+  ::parquet::ArrowReaderProperties properties;
   std::unique_ptr<::parquet::arrow::FileReader> arrow_reader;
-  std::shared_ptr<::arrow::RecordBatchReader> rb_reader;
+  std::unique_ptr<::arrow::RecordBatchReader> rb_reader;
   std::shared_ptr<HdfsReadableFile> file;
 };
 }

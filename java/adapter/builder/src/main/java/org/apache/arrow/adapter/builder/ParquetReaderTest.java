@@ -40,19 +40,19 @@ public class ParquetReaderTest {
     HdfsReader hdfsReader = new HdfsReader(reader_handler, path);
 
     ReadThread t1 = new ReadThread(hdfsReader, allocator);
-    ReadThread t2 = new ReadThread(hdfsReader, allocator);
+    /*ReadThread t2 = new ReadThread(hdfsReader, allocator);
     ReadThread t3 = new ReadThread(hdfsReader, allocator);
-    ReadThread t4 = new ReadThread(hdfsReader, allocator);
+    ReadThread t4 = new ReadThread(hdfsReader, allocator);*/
 
     t1.start();
-    t2.start();
+    /*t2.start();
     t3.start();
-    t4.start();
+    t4.start();*/
     
     t1.join();
-    t2.join();
+    /*t2.join();
     t3.join();
-    t4.join();
+    t4.join();*/
 
     allocator.close();
     System.out.println("testParquetReader completed");
@@ -73,6 +73,8 @@ public class ParquetReaderTest {
     Schema schema;
     String name;
     BufferAllocator allocator;
+    int record_batch_count = 0;
+    int size = 0;
 
     public ReadThread(HdfsReader hdfsReader, BufferAllocator allocator) {
       int[] row_group_indices = {0};
@@ -92,11 +94,22 @@ public class ParquetReaderTest {
     public void run(){  
       VectorSchemaRoot schemaRoot = VectorSchemaRoot.create(schema, allocator);
       try {
-        vector_list = reader.readNextVectors(schemaRoot);
-        System.out.println(" ParquetReader readNextVectors done, get line: " + reader.lastReadLength());
+        //vector_list = reader.readNextVectors(schemaRoot);
+        //System.out.println(" ParquetReader readNextVectors done, get line: " + reader.lastReadLength());
         //System.out.println(" content is : " + schemaRoot.contentToTSVString());
+        while (true) {
+          ArrowRecordBatch rb = reader.readNext();
+          if (rb == null) {
+            break;
+          }
+          record_batch_count++;
+          size += rb.getLength();
+          rb.close();
+        }
+        System.out.println("Read Batches " + record_batch_count + ", total length is " + size);
       } catch (Exception e) {
         System.out.println(e);
+        e.printStackTrace();
       }
     }
 

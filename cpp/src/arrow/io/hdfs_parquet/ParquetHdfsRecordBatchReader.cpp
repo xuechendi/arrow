@@ -18,13 +18,17 @@ ParquetHdfsRecordBatchReader::ParquetHdfsRecordBatchReader(
   hdfsReader->openAndSeek(&file, 0);
   properties.set_batch_size(batch_size);
 
-  arrow_reader.reset(
-      new ::parquet::arrow::FileReader(
-        pool,
-        ::parquet::ParquetFileReader::Open(file),
-        properties));
+  Status msg = ::parquet::arrow::FileReader::Make(
+      pool,
+      ::parquet::ParquetFileReader::Open(file),
+      properties,
+      &arrow_reader);
+  if (!msg.ok()) {
+    std::cerr << "Open hdfs parquet file failed, error msg: " << msg << std::endl;
+    exit(-1);
+  }
 
-  Status msg = getRecordBatch(&rb_reader, row_group_indices, column_indices);
+  msg = getRecordBatch(row_group_indices, column_indices);
   if (!msg.ok()) {
     std::cerr << "GetRecordBatch failed, error msg: " << msg << std::endl;
     exit(-1);
@@ -43,15 +47,19 @@ ParquetHdfsRecordBatchReader::ParquetHdfsRecordBatchReader(
   hdfsReader->openAndSeek(&file, 0);
   properties.set_batch_size(batch_size);
 
-  arrow_reader.reset(
-      new ::parquet::arrow::FileReader(
-        pool,
-        ::parquet::ParquetFileReader::Open(file),
-        properties));
+  Status msg = ::parquet::arrow::FileReader::Make(
+      pool,
+      ::parquet::ParquetFileReader::Open(file),
+      properties,
+      &arrow_reader);
+  if (!msg.ok()) {
+    std::cerr << "Open hdfs parquet file failed, error msg: " << msg << std::endl;
+    exit(-1);
+  }
 
   std::vector<int> row_group_indices =
     getRowGroupIndices(arrow_reader->num_row_groups(), start_pos, end_pos);
-  Status msg = getRecordBatch(&rb_reader, row_group_indices, column_indices);
+  msg = getRecordBatch(row_group_indices, column_indices);
   if (!msg.ok()) {
     std::cerr << "GetRecordBatch failed, error msg: " << msg << std::endl;
     exit(-1);
@@ -79,15 +87,12 @@ std::vector<int> ParquetHdfsRecordBatchReader::getRowGroupIndices(
 } 
 
 Status ParquetHdfsRecordBatchReader::getRecordBatch(
-    std::shared_ptr<::arrow::RecordBatchReader>* rb_reader,
     std::vector<int>& row_group_indices,
     std::vector<int>& column_indices) {
-  //std::cerr << "row_group_indices has element number " << row_group_indices.size() << std::endl;
-  //std::cerr << "column_indices has element number " << column_indices.size() << std::endl;
   if (column_indices.empty()) {
-    return arrow_reader->GetRecordBatchReader(row_group_indices, rb_reader);
+    return arrow_reader->GetRecordBatchReader(row_group_indices, &rb_reader);
   } else {
-    return arrow_reader->GetRecordBatchReader(row_group_indices, column_indices, rb_reader);
+    return arrow_reader->GetRecordBatchReader(row_group_indices, column_indices, &rb_reader);
   }
 }
 
