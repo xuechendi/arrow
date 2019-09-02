@@ -83,6 +83,9 @@ std::vector<int> ParquetHdfsRecordBatchReader::getRowGroupIndices(
     }
     pos += reader->RowGroup(i)->metadata()->total_byte_size();
   }
+  if (row_group_indices.empty()) {
+    row_group_indices.push_back(num_row_groups - 1);
+  }
   return row_group_indices;
 } 
 
