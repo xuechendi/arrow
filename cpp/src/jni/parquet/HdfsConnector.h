@@ -1,5 +1,5 @@
-#ifndef PARQUET_HDFS_READER_H
-#define PARQUET_HDFS_READER_H
+#ifndef HDFS_CONNECTOR_H
+#define HDFS_CONNECTOR_H
 
 #include <arrow/buffer.h>
 #include <arrow/io/hdfs.h>
@@ -8,19 +8,21 @@
 #include <arrow/array.h>
 #include <cstring>
 
-namespace arrow {
-namespace io {
+namespace jni {
+namespace parquet {
 
-class ParquetHdfsReader {
+using namespace ::arrow;
+using namespace ::arrow::io;
+
+class HdfsConnector {
 public:
-  ParquetHdfsReader(std::string hdfsPath);
-  ~ParquetHdfsReader();
+  HdfsConnector(std::string hdfsPath);
+  ~HdfsConnector();
   Status setupHdfsClient();
   void getHdfsHostAndPort(std::string hdfsPath, HdfsConnectionConfig *hdfs_conf);
   std::string getFileName();
   std::string getFileName(std::string filePath);
   Status openAndSeek(std::shared_ptr<HdfsReadableFile>* file, int64_t pos);
-  bool ifHitEndSplit(std::shared_ptr<HdfsReadableFile> file, int64_t end_pos);
   void teardown();
 
 protected:
@@ -29,7 +31,7 @@ protected:
   bool driverLoaded;
   std::string hdfsFilePath;
 };
-}//io
-}//arrow
+}//parquet
+}//jni
 
 #endif

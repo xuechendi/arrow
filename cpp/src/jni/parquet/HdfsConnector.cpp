@@ -9,12 +9,15 @@
 #include <numeric>
 #include<stdlib.h>
 
-#include "ParquetHdfsReader.h"
+#include "HdfsConnector.h"
 
-namespace arrow {
-namespace io {
+namespace jni {
+namespace parquet {
 
-ParquetHdfsReader::ParquetHdfsReader(std::string hdfsPath):
+using namespace ::arrow;
+using namespace ::arrow::io;
+
+HdfsConnector::HdfsConnector(std::string hdfsPath):
   driverLoaded(false),
   hdfsClient(nullptr) {
   getHdfsHostAndPort(hdfsPath, &hdfsConfig);
@@ -26,14 +29,13 @@ ParquetHdfsReader::ParquetHdfsReader(std::string hdfsPath):
     std::cerr << "connect HDFS failed, error is : " << msg << std::endl;
     exit(-1);
   }
-  //std::cerr << "hdfs client connected" << std::endl;
 }
 
-ParquetHdfsReader::~ParquetHdfsReader() {
+HdfsConnector::~HdfsConnector() {
   teardown();
 }
 
-Status ParquetHdfsReader::setupHdfsClient() {
+Status HdfsConnector::setupHdfsClient() {
   bool useHdfs3 = true;
   if (hdfsClient != nullptr) {
     return Status::OK();
@@ -51,7 +53,7 @@ Status ParquetHdfsReader::setupHdfsClient() {
   return HadoopFileSystem::Connect(&hdfsConfig, &hdfsClient);
 }
 
-void ParquetHdfsReader::getHdfsHostAndPort(std::string hdfs_path, HdfsConnectionConfig *hdfs_conf) {
+void HdfsConnector::getHdfsHostAndPort(std::string hdfs_path, HdfsConnectionConfig *hdfs_conf) {
   std::string search_str0 = std::string(":");
   /* hdfs path start with hdfs:// */
   std::string::size_type pos0 = hdfs_path.find_first_of(search_str0, 7);
@@ -67,10 +69,9 @@ void ParquetHdfsReader::getHdfsHostAndPort(std::string hdfs_path, HdfsConnection
       hdfs_conf->host = hdfs_path.substr(7, pos0 - 7);
       hdfs_conf->port = std::stoul(hdfs_path.substr(pos0 + 1, pos1 - pos0 - 1));    
   }     
-  //std::cerr << "host: " << hdfs_conf->host << ", port: " << hdfs_conf->port << std::endl;
 }
 
-std::string ParquetHdfsReader::getFileName(std::string filePath) {
+std::string HdfsConnector::getFileName(std::string filePath) {
   /* Get the path with out hdfs:// prefix. */        
   std::string search_str0 = std::string(":");
   std::string::size_type pos0 = filePath.find_first_of(search_str0, 7);
@@ -82,53 +83,36 @@ std::string ParquetHdfsReader::getFileName(std::string filePath) {
       std::string::size_type pos1 = filePath.find_first_of(search_str1, 7);
       hdfsFilePath = filePath.substr(pos1, std::string::npos);
   }
-  //std::cerr << "filePath: " << hdfsFilePath << std::endl;
   return hdfsFilePath;
 }
 
-std::string ParquetHdfsReader::getFileName() {
+std::string HdfsConnector::getFileName() {
   return hdfsFilePath;
 }
 
-void ParquetHdfsReader::teardown() {
-  //std::cerr << "Disconnect to hdfs" << std::endl;
+void HdfsConnector::teardown() {
   if (hdfsClient) {
     hdfsClient->Disconnect();
     hdfsClient = nullptr;
   }
 }
 
-Status ParquetHdfsReader::openAndSeek(std::shared_ptr<HdfsReadableFile>* file, int64_t pos) {
+Status HdfsConnector::openAndSeek(std::shared_ptr<HdfsReadableFile>* file, int64_t pos) {
   Status msg = hdfsClient->OpenReadable(hdfsFilePath, file);
   if (!msg.ok()) {
     std::cerr << "Open HDFS file failed, file name is "
       << hdfsFilePath << ", error is : " << msg << std::endl;
     exit(-1);
   }
-  /*msg = (*file)->Seek(pos);
+  msg = (*file)->Seek(pos);
   if (!msg.ok()) {
     std::cerr << "Seek HDFS file to " << pos << "failed, file name is "
       << hdfsFilePath << ", error is : " << msg << std::endl;
     exit(-1);
-  }*/
+  }
   return msg;
 }
 
-bool ParquetHdfsReader::ifHitEndSplit(std::shared_ptr<HdfsReadableFile> file, int64_t end_pos) {
-  int64_t cur_pos;
-  Status msg = file->Tell(&cur_pos);
-  if (!msg.ok()) {
-    std::cerr << "Seek HDFS tell cur position failed, file name is "
-      << hdfsFilePath << ", error is : " << msg << std::endl;
-    exit(-1);
-  }
-  std::cerr << hdfsFilePath << " check ifHitEndSplit, cur_pos is " << cur_pos << ", end_pos is " << end_pos << std::endl;
-  if (cur_pos >= end_pos) {
-    return true;
-  } else {
-    return false;
-  }
-}
 
 }
 }
