@@ -134,17 +134,24 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandl
   (JNIEnv *env, jobject obj, jlong hdfsReaderHandler, jintArray column_indices, jintArray row_group_indices, jlong batch_size) {
   arrow::io::ParquetHdfsReader *hdfsReader = (arrow::io::ParquetHdfsReader*)hdfsReaderHandler;
 
-  int row_group_indices_len = env->GetArrayLength(row_group_indices);
-  jint* row_group_indices_ptr = env->GetIntArrayElements(row_group_indices, 0);
-  std::vector<int> _row_group_indices(row_group_indices_ptr, row_group_indices_ptr + row_group_indices_len);
-
   int column_indices_len = env->GetArrayLength(column_indices);
   jint* column_indices_ptr = env->GetIntArrayElements(column_indices, 0);
   std::vector<int> _column_indices(column_indices_ptr, column_indices_ptr + column_indices_len);
 
-  arrow::io::ParquetHdfsRecordBatchReader* reader =
-    new arrow::io::ParquetHdfsRecordBatchReader(hdfsReader, _row_group_indices, _column_indices, batch_size);
-  return (long)reader;
+  int row_group_indices_len = env->GetArrayLength(row_group_indices);
+  if (row_group_indices_len == 0) {
+    std::vector<int> _row_group_indices = {};
+    arrow::io::ParquetHdfsRecordBatchReader* reader =
+      new arrow::io::ParquetHdfsRecordBatchReader(hdfsReader, _row_group_indices, _column_indices, batch_size);
+    return (long)reader;
+  } else {
+    jint* row_group_indices_ptr = env->GetIntArrayElements(row_group_indices, 0);
+    std::vector<int> _row_group_indices(row_group_indices_ptr, row_group_indices_ptr + row_group_indices_len);
+    arrow::io::ParquetHdfsRecordBatchReader* reader =
+      new arrow::io::ParquetHdfsRecordBatchReader(hdfsReader, _row_group_indices, _column_indices, batch_size);
+    return (long)reader;
+  }
+
 }
 
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeOpenParquetReaderWithRange

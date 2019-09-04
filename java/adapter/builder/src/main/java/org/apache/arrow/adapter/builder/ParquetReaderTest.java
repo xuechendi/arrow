@@ -28,39 +28,40 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.ParseException;
+
 public class ParquetReaderTest {
 
-  public static void testParquetReader() throws Exception {
-    //String path = new String("hdfs://sr602:9000/tpcds/web_sales/ws_sold_date_sk=2451836/part-00092-5adaa592-957b-475d-95f7-64881c8e0c68.c000.snappy.parquet");
-    String path = new String("hdfs://sr602:9000/tpcds/web_sales/ws_sold_date_sk=2452258/part-00039-5adaa592-957b-475d-95f7-64881c8e0c68.c000.snappy.parquet");
+  public static void testParquetReader(String path, int numColumns) throws Exception {
+    System.out.println("Will open file " + path);
     BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
 
     ParquetReaderHandler reader_handler = new ParquetReaderHandler(allocator);
-    //ArrowRecordBatch record_batch = reader.readNext();
     HdfsReader hdfsReader = new HdfsReader(reader_handler, path);
 
-    ReadThread t1 = new ReadThread(hdfsReader, allocator);
-    /*ReadThread t2 = new ReadThread(hdfsReader, allocator);
-    ReadThread t3 = new ReadThread(hdfsReader, allocator);
-    ReadThread t4 = new ReadThread(hdfsReader, allocator);*/
+    ReadThread t1 = new ReadThread(hdfsReader, allocator, numColumns);
 
     t1.start();
-    /*t2.start();
-    t3.start();
-    t4.start();*/
     
     t1.join();
-    /*t2.join();
-    t3.join();
-    t4.join();*/
 
     allocator.close();
     System.out.println("testParquetReader completed");
   }
 
   public static void main(String[] args) {
+    Options options = new Options();
+    options.addOption(new Option("p", "path", true, "hdfs parquet file path, ex: hdfs://sr602:9000/tpcds/***.parquet"));
+    options.addOption(new Option("c", "numColumns", true, "First N columns will be select"));
+    CommandLineParser parser = new DefaultParser();
     try {
-      testParquetReader();
+      CommandLine cmd = parser.parse(options, args);
+      testParquetReader(cmd.getOptionValue("p"), Integer.parseInt(cmd.getOptionValue("c")));
     } catch (Exception e) {
       System.out.println(e);
     }
@@ -76,13 +77,14 @@ public class ParquetReaderTest {
     int record_batch_count = 0;
     int size = 0;
 
-    public ReadThread(HdfsReader hdfsReader, BufferAllocator allocator) {
+    public ReadThread(HdfsReader hdfsReader, BufferAllocator allocator, int numColumns) {
       int[] row_group_indices = {0};
-      int[] column_indices = {0,1,2,3,4,5,6,7,8,9};
-      long start_pos = 268435456;
-      long end_pos = 333952154;
-      //this.reader = new ParquetReader(hdfsReader, row_group_indices, column_indices, 4096);
-      this.reader = new ParquetReader(hdfsReader, column_indices, start_pos, end_pos, 4096);
+      int[] column_indices = new int[numColumns];
+      for (int i = 0; i < numColumns; i++) {
+        column_indices[i] = i;
+      }
+      this.reader = new ParquetReader(hdfsReader, column_indices, row_group_indices, 4096);
+      //this.reader = new ParquetReader(hdfsReader, column_indices, start_pos, end_pos, 4096);
       try {
         this.schema = reader.getSchema();
       } catch (Exception e) {
