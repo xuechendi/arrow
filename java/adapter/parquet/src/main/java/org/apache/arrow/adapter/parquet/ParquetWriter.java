@@ -15,23 +15,33 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.adapter.builder;
 
-import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
+package org.apache.arrow.adapter.parquet;
 
-public class ArrowFieldNodeBuilder {
+import java.io.IOException;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.types.pojo.Schema;
 
-  private int length;
-  private int nullCount;
+public class ParquetWriter {
 
-  public ArrowFieldNodeBuilder(int length, int nullCount) {
-    this.length = length;
-    this.nullCount = nullCount;
+  private long parquetWriterHandler;
+  private ParquetWriterJniWrapper wrapper;
+
+  public ParquetWriter(ParquetWriterJniWrapper wrapper, String path, Schema schema)
+      throws IOException {
+    this.wrapper = wrapper;
+    parquetWriterHandler = openParquetFile(path, schema);
   }
 
-  public ArrowFieldNode build() {
-    return new ArrowFieldNode(length, nullCount);
+  public long openParquetFile(String path, Schema schema) throws IOException {
+    return wrapper.openParquetFile(path, schema);
   }
 
+  public void close() {
+    wrapper.closeParquetFile(parquetWriterHandler);
+  }
+
+  public void writeNext(ArrowRecordBatch recordBatch) {
+    wrapper.writeNext(parquetWriterHandler, recordBatch);
+  }
 }
-

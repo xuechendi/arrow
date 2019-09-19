@@ -10,8 +10,12 @@ MAIN=libarrow_parquet_jni.so
 
 all: clean $(MAIN) install
 
+test:
+	rm -f small_test
+	$(CC) $(CFLAGS) $(INCLUDE) -o small_test main.c /usr/lib64/libarrow_parquet_jni.so ${LIBS}
+
 $(MAIN):
-	$(CC) $(CFLAGS) $(INCLUDE) -shared -o $(MAIN) HdfsConnector.cpp ParquetReader.cpp jni_wrapper.cpp $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) -shared -o $(MAIN) HdfsConnector.cpp ParquetReader.cpp ParquetWriter.cpp jni_wrapper.cpp $(LIBS)
 
 install:
 	cp -f libarrow_parquet_jni.so /usr/lib64/libarrow_parquet_jni.so

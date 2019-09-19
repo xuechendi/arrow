@@ -17,13 +17,14 @@
 
 #include <jni.h>
 #include <string>
-#include <arrow/array.h>
-#include <arrow/buffer.h>
 #include <arrow/ipc/api.h>
+#include <arrow/ipc/dictionary.h>
+#include <arrow/buffer.h>
 #include <iostream>
 
 #include "concurrent_map.h"
 #include "ParquetReader.h"
+#include "ParquetWriter.h"
 
 static jclass arrow_record_batch_builder_class;
 static jmethodID arrow_record_batch_builder_constructor;
@@ -92,17 +93,17 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     CreateGlobalClassReference(env, "Ljava/lang/IllegalArgumentException;");
 
   arrow_record_batch_builder_class =
-    CreateGlobalClassReference(env, "Lorg/apache/arrow/adapter/builder/ArrowRecordBatchBuilder;");
+    CreateGlobalClassReference(env, "Lorg/apache/arrow/adapter/parquet/ArrowRecordBatchBuilder;");
   arrow_record_batch_builder_constructor = GetMethodID(env, arrow_record_batch_builder_class,
     "<init>",
-    "(I[Lorg/apache/arrow/adapter/builder/ArrowFieldNodeBuilder;[Lorg/apache/arrow/adapter/builder/ArrowBufBuilder;)V");
+    "(I[Lorg/apache/arrow/adapter/parquet/ArrowFieldNodeBuilder;[Lorg/apache/arrow/adapter/parquet/ArrowBufBuilder;)V");
 
   arrow_field_node_builder_class =
-    CreateGlobalClassReference(env, "Lorg/apache/arrow/adapter/builder/ArrowFieldNodeBuilder;");
+    CreateGlobalClassReference(env, "Lorg/apache/arrow/adapter/parquet/ArrowFieldNodeBuilder;");
   arrow_field_node_builder_constructor = GetMethodID(env, arrow_field_node_builder_class, "<init>", "(II)V");
 
   arrowbuf_builder_class =
-    CreateGlobalClassReference(env, "Lorg/apache/arrow/adapter/builder/ArrowBufBuilder;");
+    CreateGlobalClassReference(env, "Lorg/apache/arrow/adapter/parquet/ArrowBufBuilder;");
   arrowbuf_builder_constructor = GetMethodID(env, arrowbuf_builder_class, "<init>", "(JJIJ)V");
 
   return JNI_VERSION;
@@ -124,65 +125,60 @@ void JNI_OnUnload(JavaVM* vm, void* reserved) {
   buffer_holder_.Clear();
 }
 
-JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeOpenHdfsReader
-  (JNIEnv *env, jobject obj, jstring path) {
-  std::string cpath = JStringToCString(env, path);
-  jni::parquet::HdfsConnector* reader = new jni::parquet::HdfsConnector(cpath);
-  return (long)reader;
-}
-
-JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeOpenParquetReader
-  (JNIEnv *env, jobject obj, jlong hdfsReaderHandler, jintArray column_indices, jintArray row_group_indices, jlong batch_size) {
-  jni::parquet::HdfsConnector *hdfsReader = (jni::parquet::HdfsConnector*)hdfsReaderHandler;
+JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_parquet_ParquetReaderJniWrapper_nativeOpenParquetReader
+  (JNIEnv *env, jobject obj, jstring path, jintArray column_indices, jintArray row_group_indices, jlong batch_size) {
 
   int column_indices_len = env->GetArrayLength(column_indices);
   jint* column_indices_ptr = env->GetIntArrayElements(column_indices, 0);
   std::vector<int> _column_indices(column_indices_ptr, column_indices_ptr + column_indices_len);
 
+  std::string cpath = JStringToCString(env, path);
+  jni::parquet::HdfsConnector* hdfsConnector = new jni::parquet::HdfsConnector(cpath);
   int row_group_indices_len = env->GetArrayLength(row_group_indices);
   if (row_group_indices_len == 0) {
     std::vector<int> _row_group_indices = {};
     jni::parquet::ParquetReader* reader =
-      new jni::parquet::ParquetReader(hdfsReader, _row_group_indices, _column_indices, batch_size);
+      new jni::parquet::ParquetReader(hdfsConnector, _row_group_indices, _column_indices, batch_size);
+    env->ReleaseIntArrayElements(column_indices, column_indices_ptr, JNI_ABORT);
     return (long)reader;
   } else {
     jint* row_group_indices_ptr = env->GetIntArrayElements(row_group_indices, 0);
     std::vector<int> _row_group_indices(row_group_indices_ptr, row_group_indices_ptr + row_group_indices_len);
+
     jni::parquet::ParquetReader* reader =
-      new jni::parquet::ParquetReader(hdfsReader, _row_group_indices, _column_indices, batch_size);
+      new jni::parquet::ParquetReader(hdfsConnector, _row_group_indices, _column_indices, batch_size);
+
+    env->ReleaseIntArrayElements(row_group_indices, row_group_indices_ptr, JNI_ABORT);
+    env->ReleaseIntArrayElements(column_indices, column_indices_ptr, JNI_ABORT);
     return (long)reader;
   }
 
 }
 
-JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeOpenParquetReaderWithRange
-  (JNIEnv *env, jobject obj, jlong hdfsReaderHandler, jintArray column_indices, jlong start_pos, jlong end_pos, jlong batch_size) {
-  jni::parquet::HdfsConnector *hdfsReader = (jni::parquet::HdfsConnector*)hdfsReaderHandler;
+JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_parquet_ParquetReaderJniWrapper_nativeOpenParquetReaderWithRange
+  (JNIEnv *env, jobject obj, jstring path, jintArray column_indices, jlong start_pos, jlong end_pos, jlong batch_size) {
+  std::string cpath = JStringToCString(env, path);
+  jni::parquet::HdfsConnector* hdfsConnector = new jni::parquet::HdfsConnector(cpath);
 
   int column_indices_len = env->GetArrayLength(column_indices);
   jint* column_indices_ptr = env->GetIntArrayElements(column_indices, 0);
   std::vector<int> _column_indices(column_indices_ptr, column_indices_ptr + column_indices_len);
 
   jni::parquet::ParquetReader* reader =
-    new jni::parquet::ParquetReader(hdfsReader, _column_indices, start_pos, end_pos, batch_size);
+    new jni::parquet::ParquetReader(hdfsConnector, _column_indices, start_pos, end_pos, batch_size);
+
+  env->ReleaseIntArrayElements(column_indices, column_indices_ptr, JNI_ABORT);
   return (long)reader;
 }
 
-JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeCloseHdfsReader
-  (JNIEnv *env, jobject obj, jlong reader_ptr) {
-  jni::parquet::HdfsConnector* reader =
-    (jni::parquet::HdfsConnector*)reader_ptr;
-  delete reader; 
-}
-
-JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeCloseParquetReader
+JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_parquet_ParquetReaderJniWrapper_nativeCloseParquetReader
   (JNIEnv *env, jobject obj, jlong reader_ptr) {
   jni::parquet::ParquetReader* reader =
     (jni::parquet::ParquetReader*)reader_ptr;
   delete reader; 
 }
 
-JNIEXPORT jobject JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeReadNext
+JNIEXPORT jobject JNICALL Java_org_apache_arrow_adapter_parquet_ParquetReaderJniWrapper_nativeReadNext
   (JNIEnv *env, jobject obj, jlong reader_ptr) {
   std::shared_ptr<::arrow::RecordBatch> record_batch;
   jni::parquet::ParquetReader* reader = (jni::parquet::ParquetReader*)reader_ptr;
@@ -229,7 +225,7 @@ JNIEXPORT jobject JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHan
   return arrowRecordBatchBuilder;
 }
 
-JNIEXPORT jobject JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHandler_nativeGetSchema
+JNIEXPORT jobject JNICALL Java_org_apache_arrow_adapter_parquet_ParquetReaderJniWrapper_nativeGetSchema
   (JNIEnv *env, jobject obj, jlong reader_ptr) {
   jni::parquet::ParquetReader* reader = (jni::parquet::ParquetReader*)reader_ptr;
   std::shared_ptr<::arrow::Schema> schema = reader->schema();
@@ -246,9 +242,66 @@ JNIEXPORT jobject JNICALL Java_org_apache_arrow_adapter_builder_ParquetReaderHan
   return ret;
 }
 
-JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_builder_AdaptorReferenceManager_nativeRelease(
+JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_parquet_AdaptorReferenceManager_nativeRelease(
     JNIEnv* env, jobject this_obj, jlong id) {
   buffer_holder_.Erase(id);
+}
+
+JNIEXPORT jlong JNICALL Java_org_apache_arrow_adapter_parquet_ParquetWriterJniWrapper_nativeOpenParquetWriter
+  (JNIEnv *env, jobject obj, jstring path, jbyteArray schemaBytes) {
+
+  int schemaBytes_len = env->GetArrayLength(schemaBytes);
+  jbyte* schemaBytes_data = env->GetByteArrayElements(schemaBytes, 0);
+
+  auto serialized_schema = std::make_shared<arrow::Buffer>((uint8_t*)schemaBytes_data, schemaBytes_len);
+  arrow::ipc::DictionaryMemo in_memo;
+  std::shared_ptr<arrow::Schema> schema;
+  arrow::io::BufferReader buf_reader(serialized_schema);
+
+  arrow::Status status = arrow::ipc::ReadSchema(&buf_reader, &in_memo, &schema);
+  if (!status.ok()) {
+    std::string error_message = "nativeOpenParquetWriter: failed to readSchema, err msg is ";
+    std::cerr << error_message << status << std::endl;
+    exit(-1);
+  }
+
+  std::string cpath = JStringToCString(env, path);
+  jni::parquet::HdfsConnector* hdfsConnector = new jni::parquet::HdfsConnector(cpath);
+  jni::parquet::ParquetWriter* writer = new jni::parquet::ParquetWriter(hdfsConnector, schema);
+
+  env->ReleaseByteArrayElements(schemaBytes, schemaBytes_data, JNI_ABORT);
+  return (long)writer;
+}
+
+JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_parquet_ParquetWriterJniWrapper_nativeCloseParquetWriter
+  (JNIEnv *env, jobject obj, jlong writer_ptr) {
+  jni::parquet::ParquetWriter* writer = (jni::parquet::ParquetWriter*) writer_ptr;
+  delete writer;
+}
+
+JNIEXPORT void JNICALL Java_org_apache_arrow_adapter_parquet_ParquetWriterJniWrapper_nativeWriteNext
+  (JNIEnv *env, jobject obj, jlong writer_ptr, jint numRows, jlongArray bufAddrs, jlongArray bufSizes) {
+  int in_bufs_len = env->GetArrayLength(bufAddrs);
+  if (in_bufs_len != env->GetArrayLength(bufSizes)) {
+    std::string error_message = "nativeWriteNext: mismatch in arraylen of buf_addrs and buf_sizes";
+    std::cerr << error_message << std::endl;
+    exit(-1);
+  }
+
+  jlong* in_buf_addrs = env->GetLongArrayElements(bufAddrs, 0);
+  jlong* in_buf_sizes = env->GetLongArrayElements(bufSizes, 0);
+
+  jni::parquet::ParquetWriter* writer = (jni::parquet::ParquetWriter*) writer_ptr;
+  arrow::Status status = writer->writeNext(numRows, in_buf_addrs, in_buf_sizes, in_bufs_len);
+
+  if (!status.ok()) {
+    std::string error_message = "nativeWriteNext: failed, err msg is ";
+    std::cerr << error_message << status << std::endl;
+    exit(-1);
+  }
+
+  env->ReleaseLongArrayElements(bufAddrs, in_buf_addrs, JNI_ABORT);
+  env->ReleaseLongArrayElements(bufSizes, in_buf_sizes, JNI_ABORT);
 }
 
 #ifdef __cplusplus

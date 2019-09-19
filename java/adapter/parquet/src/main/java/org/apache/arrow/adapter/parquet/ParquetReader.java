@@ -16,7 +16,7 @@
  */
 
 
-package org.apache.arrow.adapter.builder;
+package org.apache.arrow.adapter.parquet;
 
 import java.io.IOException;
 import java.lang.*;
@@ -31,28 +31,29 @@ import org.apache.arrow.vector.types.pojo.Schema;
 
 public class ParquetReader {
 
-  private long nativeHandler;
-  private long lastReadLength;
-  private HdfsReader hdfsReader;
+  private long parquetReaderHandler;
+  private ParquetReaderJniWrapper wrapper;
 
-  public ParquetReader(
-      HdfsReader hdfsReader, int[] row_group_indices, int[] column_indices, long batch_size) {
-    this.hdfsReader = hdfsReader;
-    nativeHandler = hdfsReader.openParquetFile(row_group_indices, column_indices, batch_size);
+  private long lastReadLength;
+
+  public ParquetReader(ParquetReaderJniWrapper wrapper, String path,
+      int[] row_group_indices, int[] column_indices, long batch_size) {
+    this.wrapper = wrapper;
+    parquetReaderHandler = wrapper.openParquetFile(path, row_group_indices, column_indices, batch_size);
   }
 
-  public ParquetReader(
-      HdfsReader hdfsReader, int[] column_indices, long start_pos, long end_pos, long batch_size) {
-    this.hdfsReader = hdfsReader;
-    nativeHandler = hdfsReader.openParquetFile(column_indices, start_pos, end_pos, batch_size);
+  public ParquetReader(ParquetReaderJniWrapper wrapper, String path,
+      int[] column_indices, long start_pos, long end_pos, long batch_size) {
+    this.wrapper = wrapper;
+    parquetReaderHandler = wrapper.openParquetFile(path, column_indices, start_pos, end_pos, batch_size);
   }
 
   public void close() {
-    hdfsReader.closeParquetFile(nativeHandler);
+    wrapper.closeParquetFile(parquetReaderHandler);
   }
 
   public ArrowRecordBatch readNext() {
-    ArrowRecordBatch batch = hdfsReader.readNext(nativeHandler);
+    ArrowRecordBatch batch = wrapper.readNext(parquetReaderHandler);
     if (batch == null) {
       return null;
     }
@@ -61,7 +62,7 @@ public class ParquetReader {
   }
 
   public Schema getSchema() throws IOException {
-    return hdfsReader.getSchema(nativeHandler);
+    return wrapper.getSchema(parquetReaderHandler);
   }
 
   public List<FieldVector> readNextVectors(VectorSchemaRoot root) {

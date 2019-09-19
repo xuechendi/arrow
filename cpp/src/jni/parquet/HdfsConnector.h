@@ -22,7 +22,8 @@ public:
   void getHdfsHostAndPort(std::string hdfsPath, HdfsConnectionConfig *hdfs_conf);
   std::string getFileName();
   std::string getFileName(std::string filePath);
-  Status openAndSeek(std::shared_ptr<HdfsReadableFile>* file, int64_t pos);
+  Status openReadable(std::shared_ptr<HdfsReadableFile>* file);
+  Status openWritable(std::shared_ptr<HdfsOutputStream>* file, int32_t buffer_size = 0, int16_t replication = 1, int64_t default_block_size = 0);
   void teardown();
 
 protected:
@@ -30,6 +31,8 @@ protected:
   HdfsConnectionConfig hdfsConfig;
   bool driverLoaded;
   std::string hdfsFilePath;
+  Status mkdir(std::string path);
+  std::string getPathDir(std::string path);
 };
 }//parquet
 }//jni

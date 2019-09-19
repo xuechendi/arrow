@@ -15,38 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.adapter.builder;
+package org.apache.arrow.adapter.parquet;
 
-import io.netty.buffer.ArrowBuf;
-import java.lang.*;
-import java.util.*;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
-import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 
-public class ArrowRecordBatchBuilder {
+public class ArrowFieldNodeBuilder {
 
   private int length;
-  private List<ArrowFieldNode> nodes;
-  private List<ArrowBuf> buffers;
+  private int nullCount;
 
-  public ArrowRecordBatchBuilder(int length, ArrowFieldNodeBuilder[] node_builders, ArrowBufBuilder[] buffer_builders) {
+  public ArrowFieldNodeBuilder(int length, int nullCount) {
     this.length = length;
-    this.nodes = new ArrayList<ArrowFieldNode>();
-    for (ArrowFieldNodeBuilder tmp : node_builders) {
-      this.nodes.add(tmp.build());
-    }
-
-    this.buffers = new ArrayList<ArrowBuf>();
-    for (ArrowBufBuilder tmp : buffer_builders) {
-      this.buffers.add(tmp.build());
-    }
+    this.nullCount = nullCount;
   }
 
-  public ArrowRecordBatch build() {
-    if (length == 0) {
-      return null;
-    }
-    return new ArrowRecordBatch(length, nodes, buffers);
+  public ArrowFieldNode build() {
+    return new ArrowFieldNode(length, nullCount);
   }
-  
-} 
+
+}
+

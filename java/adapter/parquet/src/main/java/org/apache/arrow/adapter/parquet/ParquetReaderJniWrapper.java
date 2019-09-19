@@ -16,7 +16,7 @@
  */
 
 
-package org.apache.arrow.adapter.builder;
+package org.apache.arrow.adapter.parquet;
 
 import java.io.IOException;
 import org.apache.arrow.memory.BufferAllocator;
@@ -29,44 +29,34 @@ import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.ByteArrayReadableSeekableByteChannel;
 
-public class ParquetReaderHandler {
+public class ParquetReaderJniWrapper {
   static {
     System.loadLibrary("arrow_parquet_jni");
   }
-  private native long nativeOpenHdfsReader(String path);
-  private native void nativeCloseHdfsReader(long nativeHandler);
   private native long nativeOpenParquetReader(
-      long nativeHdfsHandler, int[] column_indices, int[] row_group_indices, long batch_size);
+      String path, int[] column_indices, int[] row_group_indices, long batch_size);
   private native long nativeOpenParquetReaderWithRange(
-      long nativeHdfsHandler, int[] column_indices, long start_pos, long end_pos, long batch_size);
+      String path, int[] column_indices, long start_pos, long end_pos, long batch_size);
   private native void nativeCloseParquetReader(long nativeHandler);
   private native ArrowRecordBatchBuilder nativeReadNext(long nativeHandler);
   private native byte[] nativeGetSchema(long nativeHandler);
 
   private BufferAllocator allocator;
 
-  public ParquetReaderHandler(BufferAllocator allocator) {
+  public ParquetReaderJniWrapper(BufferAllocator allocator) {
     this.allocator = allocator;
   }
 
-  long openHdfs(String path) {
-    return nativeOpenHdfsReader(path);
-  }
-
-  void closeHdfs(long nativeHandler) {
-    nativeCloseHdfsReader(nativeHandler);
-  }
-
   long openParquetFile(
-      long nativeHdfsHandler, int[] row_group_indices, int[] column_indices, long batch_size) {
+      String path, int[] row_group_indices, int[] column_indices, long batch_size) {
     return nativeOpenParquetReader(
-        nativeHdfsHandler, column_indices, row_group_indices, batch_size);
+        path, column_indices, row_group_indices, batch_size);
   }
 
   long openParquetFile(
-      long nativeHdfsHandler, int[] column_indices, long start_pos, long end_pos, long batch_size) {
+      String path, int[] column_indices, long start_pos, long end_pos, long batch_size) {
     return nativeOpenParquetReaderWithRange(
-        nativeHdfsHandler, column_indices, start_pos, end_pos, batch_size);
+        path, column_indices, start_pos, end_pos, batch_size);
   }
 
   void closeParquetFile(long nativeHandler) {

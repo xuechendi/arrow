@@ -11,14 +11,14 @@ using namespace ::arrow;
 using namespace ::arrow::io;
 
 ParquetReader::ParquetReader(
-    HdfsConnector* hdfsReader,
+    HdfsConnector* hdfsConnector,
     std::vector<int>& column_indices,
     std::vector<int>& row_group_indices,
     long batch_size):
   pool(::arrow::default_memory_pool()),
   properties(false),
-  hdfsReader(hdfsReader) {
-  hdfsReader->openAndSeek(&file, 0);
+  hdfsConnector(hdfsConnector) {
+  hdfsConnector->openReadable(&file);
   properties.set_batch_size(batch_size);
 
   Status msg = ::parquet::arrow::FileReader::Make(
@@ -39,15 +39,15 @@ ParquetReader::ParquetReader(
 }
 
 ParquetReader::ParquetReader(
-    HdfsConnector* hdfsReader,
+    HdfsConnector* hdfsConnector,
     std::vector<int>& column_indices,
     long start_pos,
     long end_pos,
     long batch_size):
   pool(::arrow::default_memory_pool()),
   properties(false),
-  hdfsReader(hdfsReader){
-  hdfsReader->openAndSeek(&file, 0);
+  hdfsConnector(hdfsConnector){
+  hdfsConnector->openReadable(&file);
   properties.set_batch_size(batch_size);
 
   Status msg = ::parquet::arrow::FileReader::Make(
@@ -71,6 +71,8 @@ ParquetReader::ParquetReader(
 
 ParquetReader::~ParquetReader(){
   //std::cerr << "~ParquetReader" << std::endl;
+  file->Close();
+  delete hdfsConnector;
 }
 
 std::vector<int> ParquetReader::getRowGroupIndices(
@@ -81,7 +83,7 @@ std::vector<int> ParquetReader::getRowGroupIndices(
   for (int i = 0; i < num_row_groups; i++) {
     if (pos >= start_pos && pos < end_pos) {
       row_group_indices.push_back(i);
-      std::cerr << "pos: " << pos << " ,range: " << start_pos << "-" << end_pos << ", find row group index: " << i << std::endl;
+      //std::cerr << "pos: " << pos << " ,range: " << start_pos << "-" << end_pos << ", find row group index: " << i << std::endl;
       break;
     }
     pos += reader->RowGroup(i)->metadata()->total_byte_size();
@@ -105,16 +107,6 @@ Status ParquetReader::getRecordBatch(
 Status ParquetReader::readNext(std::shared_ptr<::arrow::RecordBatch>* out){
   std::lock_guard<std::mutex> lck (threadMtx);
   return rb_reader->ReadNext(out);
-}
-
-void ParquetReader::print(std::shared_ptr<::arrow::RecordBatch> out) {
-  std::cout << "this record batch has numColumns " << out->num_columns() << ", and numRows is "
-    << out->num_rows() << std::endl;
-  for (int i = 0; i < 10; i++) {
-    auto array = out->column(i);
-    std::cout << out->column_name(i) << std::endl;
-  }
-  std::cout << std::endl;
 }
 
 

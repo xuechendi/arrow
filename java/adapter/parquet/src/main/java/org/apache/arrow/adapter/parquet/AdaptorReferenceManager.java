@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.adapter.builder;
+package org.apache.arrow.adapter.parquet;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

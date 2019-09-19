@@ -97,20 +97,52 @@ void HdfsConnector::teardown() {
   }
 }
 
-Status HdfsConnector::openAndSeek(std::shared_ptr<HdfsReadableFile>* file, int64_t pos) {
+Status HdfsConnector::openReadable(std::shared_ptr<HdfsReadableFile>* file) {
   Status msg = hdfsClient->OpenReadable(hdfsFilePath, file);
   if (!msg.ok()) {
     std::cerr << "Open HDFS file failed, file name is "
       << hdfsFilePath << ", error is : " << msg << std::endl;
     exit(-1);
   }
-  msg = (*file)->Seek(pos);
+  return msg;
+}
+
+Status HdfsConnector::openWritable(std::shared_ptr<HdfsOutputStream>* file, int32_t buffer_size, int16_t replication, int64_t default_block_size) {
+  
+  std::string dir = getPathDir(hdfsFilePath);
+  Status msg = mkdir(dir);
   if (!msg.ok()) {
-    std::cerr << "Seek HDFS file to " << pos << "failed, file name is "
+    std::cerr << "Mkdir for HDFS path failed "
+      << dir << ", error is : " << msg << std::endl;
+    exit(-1);
+  }
+
+  msg = hdfsClient->OpenWritable(hdfsFilePath, false, buffer_size, replication, default_block_size, file);
+  if (!msg.ok()) {
+    std::cerr << "Open HDFS file failed, file name is "
       << hdfsFilePath << ", error is : " << msg << std::endl;
     exit(-1);
   }
   return msg;
+}
+
+Status HdfsConnector::mkdir(std::string path) {
+
+  return hdfsClient->MakeDirectory(path);
+}
+
+std::string HdfsConnector::getPathDir(std::string path) {
+  std::string delimiter = "/";
+
+  size_t pos = 0;
+  size_t last_pos = pos;
+  size_t npos = path.length() - 1;
+  std::string token;
+  while ((pos = path.find(delimiter, pos)) < npos) {
+    last_pos = pos;
+    pos += 1;
+  }
+  return path.substr(0, last_pos + delimiter.length());
 }
 
 
