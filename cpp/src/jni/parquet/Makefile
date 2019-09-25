@@ -8,18 +8,6 @@ LIBS=-lhdfs3 -lparquet -larrow -larrow_dataset
 MAIN=libarrow_parquet_jni.so
 
 
-all: clean $(MAIN) install
-
 test:
 	rm -f small_test
-	$(CC) $(CFLAGS) $(INCLUDE) -o small_test main.c /usr/lib64/libarrow_parquet_jni.so ${LIBS}
-
-$(MAIN):
-	$(CC) $(CFLAGS) $(INCLUDE) -shared -o $(MAIN) HdfsConnector.cpp ParquetReader.cpp ParquetWriter.cpp jni_wrapper.cpp $(LIBS)
-
-install:
-	cp -f libarrow_parquet_jni.so /usr/lib64/libarrow_parquet_jni.so
-
-clean:
-	rm -f libarrow_parquet_jni.so
-	rm -f /usr/lib64/libarrow_parquet_jni.so
+	$(CC) $(CFLAGS) $(INCLUDE) -o small_test hdfs_paruqet_read_write_test.c /usr/lib64/libarrow_parquet_jni.so ${LIBS}

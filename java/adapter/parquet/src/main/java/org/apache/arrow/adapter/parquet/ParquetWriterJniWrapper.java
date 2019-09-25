@@ -35,15 +35,13 @@ import org.apache.arrow.vector.util.ByteArrayReadableSeekableByteChannel;
 import io.netty.buffer.ArrowBuf;
 
 public class ParquetWriterJniWrapper {
-  static {
-    System.loadLibrary("arrow_parquet_jni");
-  }
   private native long nativeOpenParquetWriter(String path, byte[] schemaBytes);
   private native void nativeCloseParquetWriter(long nativeHandler);
   private native void nativeWriteNext(
       long nativeHandler, int numRows, long[] bufAddrs, long[] bufSizes);
 
-  public ParquetWriterJniWrapper() {
+  public ParquetWriterJniWrapper() throws IOException, IllegalAccessException {
+    ParquetJniUtils.getInstance();
   }
 
   long openParquetFile(String path, Schema schema) throws IOException {

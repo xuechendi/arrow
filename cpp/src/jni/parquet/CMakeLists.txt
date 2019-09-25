@@ -29,7 +29,7 @@ add_custom_target(arrow_parquet_jni)
 
 set(JNI_HEADERS_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
-add_subdirectory(../../../../java/adapter/builder ./java)
+add_subdirectory(../../../../java/adapter/parquet ./java)
 
 set(ARROW_BUILD_STATIC OFF)
 
@@ -37,16 +37,21 @@ add_arrow_lib(arrow_parquet_jni
               BUILD_SHARED
               SOURCES
               jni_wrapper.cpp
+              HdfsConnector.cpp
+              ParquetReader.cpp
+              ParquetWriter.cpp
               OUTPUTS
               ARROW_PARQUET_JNI_LIBRARIES
-              SHARED_PRIVATE_LINK_LIBS
-              arrow_static
+              SHARED_LINK_LIBS
+              hdfs3
+              parquet
+              arrow
+              arrow_dataset
               EXTRA_INCLUDES
               ${JNI_HEADERS_DIR}
               PRIVATE_INCLUDES
               ${JNI_INCLUDE_DIRS}
               DEPENDENCIES
-              arrow_static
-              arrow_adaptor_java)
+              arrow_parquet_java)
 
             add_dependencies(arrow_parquet_jni ${ARROW_PARQUET_JNI_LIBRARIES})

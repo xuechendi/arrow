@@ -17,15 +17,12 @@
 
 package org.apache.arrow.adapter.parquet;
 
-import io.netty.buffer.ArrowBuf;
-import org.apache.arrow.memory.BufferManager;
-
 public class ArrowBufBuilder {
 
-  private long nativeInstanceId;
-  private long memoryAddress;
-  private int size;
-  private long capacity;
+  public long nativeInstanceId;
+  public long memoryAddress;
+  public int size;
+  public long capacity;
 
   public ArrowBufBuilder(long nativeInstanceId, long memoryAddress, int size, long capacity) {
     this.memoryAddress = memoryAddress;
@@ -33,10 +30,4 @@ public class ArrowBufBuilder {
     this.capacity = capacity;
     this.nativeInstanceId = nativeInstanceId;
   }
-
-  public ArrowBuf build() {
-    AdaptorReferenceManager referenceManager = new AdaptorReferenceManager(nativeInstanceId, size);
-    return new ArrowBuf(referenceManager, null, size, memoryAddress, false);
-  }
-  
 } 

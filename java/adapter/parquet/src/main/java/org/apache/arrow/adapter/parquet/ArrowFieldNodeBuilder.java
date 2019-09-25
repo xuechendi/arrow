@@ -17,20 +17,14 @@
 
 package org.apache.arrow.adapter.parquet;
 
-import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
-
 public class ArrowFieldNodeBuilder {
 
-  private int length;
-  private int nullCount;
+  public int length;
+  public int nullCount;
 
   public ArrowFieldNodeBuilder(int length, int nullCount) {
     this.length = length;
     this.nullCount = nullCount;
-  }
-
-  public ArrowFieldNode build() {
-    return new ArrowFieldNode(length, nullCount);
   }
 
 }

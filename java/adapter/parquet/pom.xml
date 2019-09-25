@@ -45,9 +45,8 @@
     </dependencies>
 
     <properties>
-        <arrow.cpp.build.dir>../../../cpp/release-build/</arrow.cpp.build.dir>
+        <arrow.cpp.build.dir>../../../cpp/build/release</arrow.cpp.build.dir>
     </properties>
-
     <build>
         <resources>
             <resource>

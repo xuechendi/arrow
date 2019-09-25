@@ -16,12 +16,12 @@
 # under the License.
 
 #
-# arrow_adaptor_java
+# arrow_parquet_java
 #
 
 # Headers: top level
 
-project(arrow_adaptor_java)
+project(arrow_parquet_java)
 
 # Find java/jni
 include(FindJava)
@@ -31,9 +31,10 @@ include(FindJNI)
 message("generating headers to ${JNI_HEADERS_DIR}")
 
 add_jar(
-        arrow_adaptor_java
-        src/main/java/org/apache/arrow/adapter/builder/ArrowBufBuilder.java
-        src/main/java/org/apache/arrow/adapter/builder/ArrowFieldNodeBuilder.java
-        GENERATE_NATIVE_HEADERS arrow_adaptor_java-native
+        arrow_parquet_java
+        src/main/java/org/apache/arrow/adapter/parquet/ArrowBufBuilder.java
+        src/main/java/org/apache/arrow/adapter/parquet/ArrowFieldNodeBuilder.java
+        src/main/java/org/apache/arrow/adapter/parquet/ArrowRecordBatchBuilder.java
+        GENERATE_NATIVE_HEADERS arrow_parquet_java-native
         DESTINATION ${JNI_HEADERS_DIR}
 )

@@ -17,36 +17,19 @@
 
 package org.apache.arrow.adapter.parquet;
 
-import io.netty.buffer.ArrowBuf;
 import java.lang.*;
 import java.util.*;
-import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
-import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 
 public class ArrowRecordBatchBuilder {
 
-  private int length;
-  private List<ArrowFieldNode> nodes;
-  private List<ArrowBuf> buffers;
+  public int length;
+  public ArrowFieldNodeBuilder[] node_builders;
+  public ArrowBufBuilder[] buffer_builders;
 
   public ArrowRecordBatchBuilder(int length, ArrowFieldNodeBuilder[] node_builders, ArrowBufBuilder[] buffer_builders) {
     this.length = length;
-    this.nodes = new ArrayList<ArrowFieldNode>();
-    for (ArrowFieldNodeBuilder tmp : node_builders) {
-      this.nodes.add(tmp.build());
-    }
-
-    this.buffers = new ArrayList<ArrowBuf>();
-    for (ArrowBufBuilder tmp : buffer_builders) {
-      this.buffers.add(tmp.build());
-    }
+    this.node_builders = node_builders;
+    this.buffer_builders = buffer_builders;
   }
 
-  public ArrowRecordBatch build() {
-    if (length == 0) {
-      return null;
-    }
-    return new ArrowRecordBatch(length, nodes, buffers);
-  }
-  
 } 

@@ -30,9 +30,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.ByteArrayReadableSeekableByteChannel;
 
 public class ParquetReaderJniWrapper {
-  static {
-    System.loadLibrary("arrow_parquet_jni");
-  }
+
   private native long nativeOpenParquetReader(
       String path, int[] column_indices, int[] row_group_indices, long batch_size);
   private native long nativeOpenParquetReaderWithRange(
@@ -43,7 +41,9 @@ public class ParquetReaderJniWrapper {
 
   private BufferAllocator allocator;
 
-  public ParquetReaderJniWrapper(BufferAllocator allocator) {
+  public ParquetReaderJniWrapper(BufferAllocator allocator)
+      throws IOException, IllegalAccessException {
+    ParquetJniUtils.getInstance();
     this.allocator = allocator;
   }
 
@@ -82,9 +82,10 @@ public class ParquetReaderJniWrapper {
 
   ArrowRecordBatch readNext(long nativeHandler) {
     ArrowRecordBatchBuilder rb_builder = nativeReadNext(nativeHandler);
+    ArrowRecordBatchBuilderImpl rb_builder_impl = new ArrowRecordBatchBuilderImpl(rb_builder);
     if (rb_builder == null) {
       return null;
     }
-    return rb_builder.build();
+    return rb_builder_impl.build();
   }
 }
