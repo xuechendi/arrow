@@ -60,8 +60,8 @@ set(GANDIVA_JNI_SOURCES
     config_builder.cc
     config_holder.cc
     expression_registry_helper.cc
-    jni_common.cc
-    ${PROTO_SRCS})
+    jni_common.cc)
+#   ${PROTO_SRCS})
 
 # For users of gandiva_jni library (including integ tests), include-dir is :
 #   /usr/**/include dir after install,
@@ -75,6 +75,7 @@ add_arrow_lib(gandiva_jni
               GANDIVA_JNI_LIBRARIES
               SHARED_PRIVATE_LINK_LIBS
               ${GANDIVA_LINK_LIBS}
+              gandiva_protobuf
               STATIC_LINK_LIBS
               ${GANDIVA_LINK_LIBS}
               DEPENDENCIES
