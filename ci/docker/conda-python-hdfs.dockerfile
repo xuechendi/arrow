@@ -23,9 +23,9 @@ FROM ${repo}:${arch}-conda-python-${python}
 ARG jdk=8
 ARG maven=3.5
 RUN conda install -q \
-        maven=${maven} \
+        pandas \
         openjdk=${jdk} \
-        pandas && \
+        maven=${maven} && \
     conda clean --all
 
 # installing libhdfs (JNI)

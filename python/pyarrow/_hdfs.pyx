@@ -31,10 +31,12 @@ cdef class HadoopFileSystem(FileSystem):
 
     Parameters
     ----------
-    host : str
-        HDFS host to connect to.
-    port : int, default 8020
-        HDFS port to connect to.
+    endpoint : tuple of (host, port) pair
+        For example ('localhost', 8020).
+    driver : {'libhdfs', 'libhdfs3'}, default 'libhdfs'
+        Connect using libhdfs (JNI-based) or libhdfs3 (3rd-party C++ library
+        from Apache HAWQ (incubating)). Prefer libhdfs because libhdfs3 project
+        is not maintained anymore.
     replication : int, default 3
         Number of copies each block will have.
     buffer_size : int, default 0
@@ -63,6 +65,14 @@ cdef class HadoopFileSystem(FileSystem):
         options.ConfigureHdfsReplication(replication)
         options.ConfigureHdfsBufferSize(buffer_size)
 
+    def __init__(self, endpoint=None, driver=None, replication=None,
+                 user=None, buffer_size=None, default_block_size=None):
+        if endpoint is not None:
+            self.endpoint = endpoint
+        if driver is not None:
+            self.driver = driver
+        if replication is not None:
+            self.replication = replication
         if user is not None:
             options.ConfigureHdfsUser(tobytes(user))
         if default_block_size is not None:
@@ -78,8 +88,47 @@ cdef class HadoopFileSystem(FileSystem):
 
     @staticmethod
     def from_uri(uri):
-        """
-        Instantiate HadoopFileSystem object from an URI string.
+        cdef CResult[CHdfsOptions] result
+        result = CHdfsOptions.FromUriString(tobytes(uri))
+        return HdfsOptions.wrap(GetResultValue(result))
+
+    @property
+    def endpoint(self):
+        return (
+            frombytes(self.options.connection_config.host),
+            self.options.connection_config.port
+        )
+
+    @endpoint.setter
+    def endpoint(self, value):
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise TypeError('Endpoint must be a tuple of host port pair')
+        self.options.connection_config.host = tobytes(value[0])
+        self.options.connection_config.port = int(value[1])
+
+    @property
+    def driver(self):
+        if self.options.connection_config.driver == HdfsDriver_LIBHDFS3:
+            return 'libhdfs3'
+        else:
+            return 'libhdfs'
+
+    @driver.setter
+    def driver(self, value):
+        if value == 'libhdfs3':
+            self.options.connection_config.driver = HdfsDriver_LIBHDFS3
+        elif value == 'libhdfs':
+            self.options.connection_config.driver = HdfsDriver_LIBHDFS
+        else:
+            raise ValueError('Choose either libhdfs of libhdfs3')
+
+    @property
+    def user(self):
+        return frombytes(self.options.connection_config.user)
+
+    @user.setter
+    def user(self, value):
+        self.options.connection_config.user = tobytes(value)
 
         The following two calls are equivalent:
 

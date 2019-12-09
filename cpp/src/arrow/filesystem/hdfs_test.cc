@@ -30,6 +30,7 @@
 namespace arrow {
 
 using internal::Uri;
+using io::HdfsDriver;
 
 namespace fs {
 
@@ -43,21 +44,41 @@ TEST(TestHdfsOptions, FromUri) {
   ASSERT_EQ(options.connection_config.host, "hdfs://localhost");
   ASSERT_EQ(options.connection_config.port, 0);
   ASSERT_EQ(options.connection_config.user, "");
+  ASSERT_EQ(options.connection_config.driver, HdfsDriver::LIBHDFS);
 
-  ASSERT_OK(uri.Parse("hdfs://otherhost:9999/?replication=2"));
+  ASSERT_OK(uri.Parse("hdfs://otherhost:9999/?use_hdfs3=0&replication=2"));
   ASSERT_OK_AND_ASSIGN(options, HdfsOptions::FromUri(uri));
   ASSERT_EQ(options.replication, 2);
   ASSERT_EQ(options.connection_config.host, "hdfs://otherhost");
   ASSERT_EQ(options.connection_config.port, 9999);
   ASSERT_EQ(options.connection_config.user, "");
+  ASSERT_EQ(options.connection_config.driver, HdfsDriver::LIBHDFS);
+
+  ASSERT_OK(uri.Parse("hdfs://otherhost:9999/?use_hdfs3=1&user=stevereich"));
+  ASSERT_OK_AND_ASSIGN(options, HdfsOptions::FromUri(uri));
+  ASSERT_EQ(options.replication, 3);
+  ASSERT_EQ(options.connection_config.host, "otherhost");
+  ASSERT_EQ(options.connection_config.port, 9999);
+  ASSERT_EQ(options.connection_config.user, "stevereich");
+  ASSERT_EQ(options.connection_config.driver, HdfsDriver::LIBHDFS3);
 
   ASSERT_OK(uri.Parse("viewfs://other-nn/mypath/myfile"));
   ASSERT_OK_AND_ASSIGN(options, HdfsOptions::FromUri(uri));
   ASSERT_EQ(options.connection_config.host, "viewfs://other-nn");
   ASSERT_EQ(options.connection_config.port, 0);
   ASSERT_EQ(options.connection_config.user, "");
+  ASSERT_EQ(options.connection_config.driver, HdfsDriver::LIBHDFS);
 }
 
+struct JNIDriver {
+  static HdfsDriver type;
+};
+
+struct PivotalDriver {
+  static HdfsDriver type;
+};
+
+template <typename DRIVER>
 class TestHadoopFileSystem : public ::testing::Test {
  public:
   void SetUp() override {
@@ -69,8 +90,15 @@ class TestHadoopFileSystem : public ::testing::Test {
     int hdfs_port = port == nullptr ? 20500 : atoi(port);
     std::string hdfs_user = user == nullptr ? "root" : std::string(user);
 
+    if (DRIVER::type == HdfsDriver::LIBHDFS) {
+      use_hdfs3_ = false;
+    } else {
+      use_hdfs3_ = true;
+    }
+
     options_.ConfigureEndPoint(hdfs_host, hdfs_port);
     options_.ConfigureHdfsUser(hdfs_user);
+    options_.ConfigureHdfsDriver(use_hdfs3_);
     options_.ConfigureHdfsReplication(0);
 
     auto result = HadoopFileSystem::Make(options_);
@@ -91,6 +119,9 @@ class TestHadoopFileSystem : public ::testing::Test {
     ss << "hdfs://" << options_.connection_config.host << ":"
        << options_.connection_config.port << "/"
        << "?replication=0&user=" << options_.connection_config.user;
+    if (use_hdfs3_) {
+      ss << "&use_hdfs3=1";
+    }
 
     std::shared_ptr<FileSystem> uri_fs;
     std::string path;
@@ -171,9 +202,17 @@ class TestHadoopFileSystem : public ::testing::Test {
 
  protected:
   std::shared_ptr<FileSystem> fs_;
+  bool use_hdfs3_;
   HdfsOptions options_;
   bool loaded_driver_ = false;
 };
+
+HdfsDriver JNIDriver::type = HdfsDriver::LIBHDFS;
+HdfsDriver PivotalDriver::type = HdfsDriver::LIBHDFS3;
+
+typedef ::testing::Types<JNIDriver, PivotalDriver> DriverTypes;
+
+TYPED_TEST_CASE(TestHadoopFileSystem, DriverTypes);
 
 #define SKIP_IF_NO_DRIVER()                           \
   if (!this->loaded_driver_) {                        \
@@ -181,7 +220,7 @@ class TestHadoopFileSystem : public ::testing::Test {
     return;                                           \
   }
 
-TEST_F(TestHadoopFileSystem, CreateDirDeleteDir) {
+TYPED_TEST(TestHadoopFileSystem, CreateDirDeleteDir) {
   SKIP_IF_NO_DRIVER();
 
   // recursive = true
@@ -204,7 +243,7 @@ TEST_F(TestHadoopFileSystem, CreateDirDeleteDir) {
   ASSERT_RAISES(IOError, this->fs_->DeleteDir("AB"));
 }
 
-TEST_F(TestHadoopFileSystem, DeleteDirContents) {
+TYPED_TEST(TestHadoopFileSystem, DeleteDirContents) {
   SKIP_IF_NO_DRIVER();
 
   ASSERT_OK(this->fs_->CreateDir("AB/CD"));
@@ -223,7 +262,7 @@ TEST_F(TestHadoopFileSystem, DeleteDirContents) {
   ASSERT_OK(this->fs_->DeleteDir("AB"));
 }
 
-TEST_F(TestHadoopFileSystem, WriteReadFile) {
+TYPED_TEST(TestHadoopFileSystem, WriteReadFile) {
   SKIP_IF_NO_DRIVER();
 
   ASSERT_OK(this->fs_->CreateDir("CD"));
@@ -246,21 +285,21 @@ TEST_F(TestHadoopFileSystem, WriteReadFile) {
   ASSERT_OK(this->fs_->DeleteDir("CD"));
 }
 
-TEST_F(TestHadoopFileSystem, GetFileInfoRelative) {
+TYPED_TEST(TestHadoopFileSystem, GetFileInfoRelative) {
   // Test GetFileInfo() with relative paths
   SKIP_IF_NO_DRIVER();
 
   this->TestGetFileInfo("");
 }
 
-TEST_F(TestHadoopFileSystem, GetFileInfoAbsolute) {
+TYPED_TEST(TestHadoopFileSystem, GetFileInfoAbsolute) {
   // Test GetFileInfo() with absolute paths
   SKIP_IF_NO_DRIVER();
 
   this->TestGetFileInfo("/");
 }
 
-TEST_F(TestHadoopFileSystem, RelativeVsAbsolutePaths) {
+TYPED_TEST(TestHadoopFileSystem, RelativeVsAbsolutePaths) {
   SKIP_IF_NO_DRIVER();
 
   // XXX This test assumes the current working directory is not "/"
@@ -274,7 +313,7 @@ TEST_F(TestHadoopFileSystem, RelativeVsAbsolutePaths) {
   AssertFileInfo(this->fs_.get(), "CD", FileType::NotFound);
 }
 
-TEST_F(TestHadoopFileSystem, MoveDir) {
+TYPED_TEST(TestHadoopFileSystem, MoveDir) {
   SKIP_IF_NO_DRIVER();
 
   FileInfo info;
@@ -294,7 +333,7 @@ TEST_F(TestHadoopFileSystem, MoveDir) {
   ASSERT_OK(this->fs_->DeleteDir(directory_name_dest));
 }
 
-TEST_F(TestHadoopFileSystem, FileSystemFromUri) {
+TYPED_TEST(TestHadoopFileSystem, FileSystemFromUri) {
   SKIP_IF_NO_DRIVER();
 
   this->TestFileSystemFromUri();

@@ -52,7 +52,11 @@ class HadoopFileSystem::Impl {
 
   Status Init() {
     io::internal::LibHdfsShim* driver_shim;
-    RETURN_NOT_OK(ConnectLibHdfs(&driver_shim));
+    if (options_.connection_config.driver == io::HdfsDriver::LIBHDFS3) {
+      RETURN_NOT_OK(ConnectLibHdfs3(&driver_shim));
+    } else {
+      RETURN_NOT_OK(ConnectLibHdfs(&driver_shim));
+    }
     RETURN_NOT_OK(io::HadoopFileSystem::Connect(&options_.connection_config, &client_));
     return Status::OK();
   }
@@ -257,6 +261,14 @@ void HdfsOptions::ConfigureEndPoint(const std::string& host, int port) {
   connection_config.port = port;
 }
 
+void HdfsOptions::ConfigureHdfsDriver(bool use_hdfs3) {
+  if (use_hdfs3) {
+    connection_config.driver = ::arrow::io::HdfsDriver::LIBHDFS3;
+  } else {
+    connection_config.driver = ::arrow::io::HdfsDriver::LIBHDFS;
+  }
+}
+
 void HdfsOptions::ConfigureHdfsUser(const std::string& user_name) {
   connection_config.user = user_name;
 }
@@ -292,8 +304,32 @@ Result<HdfsOptions> HdfsOptions::FromUri(const Uri& uri) {
     options_map.emplace(kv.first, kv.second);
   }
 
+  auto useHdfs3 = false;
+  auto it = options_map.find("use_hdfs3");
+  if (it != options_map.end()) {
+    const auto& v = it->second;
+    if (v == "1") {
+      options.ConfigureHdfsDriver(true);
+      useHdfs3 = true;
+    } else if (v == "0") {
+      options.ConfigureHdfsDriver(false);
+    } else {
+      return Status::Invalid(
+          "Invalid value for option 'use_hdfs3' (allowed values are '0' and '1'): '", v,
+          "'");
+    }
+  }
+
   std::string host;
-  host = uri.scheme() + "://" + uri.host();
+  if (useHdfs3) {
+    if (uri.scheme() == "viewfs") {
+      ARROW_LOG(WARNING)
+          << "viewfs://namenode resolves to hdfs://namenode with hdfs3 driver.";
+    }
+    host = uri.host();
+  } else {
+    host = uri.scheme() + "://" + uri.host();
+  }
 
   // configure endpoint
   const auto port = uri.port();
@@ -305,7 +341,7 @@ Result<HdfsOptions> HdfsOptions::FromUri(const Uri& uri) {
   }
 
   // configure replication
-  auto it = options_map.find("replication");
+  it = options_map.find("replication");
   if (it != options_map.end()) {
     const auto& v = it->second;
     ::arrow::internal::StringConverter<Int16Type> converter;

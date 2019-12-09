@@ -260,11 +260,11 @@ Java_org_apache_arrow_adapter_parquet_ParquetWriterJniWrapper_nativeOpenParquetW
 
   // check if directory exists
   auto dir = arrow::fs::internal::GetAbstractPathParent(file_name).first;
-  arrow::fs::Selector selector;
+  arrow::fs::FileSelector selector;
   selector.base_dir = dir;
-  selector.allow_non_existent = true;
+  selector.allow_not_found = true;
   std::vector<arrow::fs::FileStats> stats;
-  ARROW_ASSIGN_OR_THROW(stats, fs->GetTargetStats(selector));
+  ARROW_ASSIGN_OR_THROW(stats, fs->GetFileInfo(selector));
   if (stats.size() == 0) {
     status = fs->CreateDir(dir);
     if (!status.ok()) {
