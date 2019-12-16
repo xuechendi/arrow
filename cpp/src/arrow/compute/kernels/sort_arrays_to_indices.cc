@@ -20,7 +20,7 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstring>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <numeric>
@@ -68,26 +68,14 @@ class ARROW_EXPORT SortArraysToIndicesKernel {
 };
 
 template <typename ArrayType>
-bool CompareValues(std::shared_ptr<ArrayType> array, ArrayItemIndex lhs,
+bool CompareValues(std::vector<std::shared_ptr<ArrayType>> arrays, ArrayItemIndex lhs,
                    ArrayItemIndex rhs) {
-  return array->Value(lhs.id) < array->Value(rhs.id);
-}
-
-template <typename ArrayType>
-bool CompareViews(std::shared_ptr<ArrayType> array, ArrayItemIndex lhs,
-                  ArrayItemIndex rhs) {
-  return array->GetView(lhs.id) < array->GetView(rhs.id);
-}
-
-template <typename ArrayType>
-bool CompareValuesFromArrays(std::vector<std::shared_ptr<ArrayType>> arrays,
-                             ArrayItemIndex lhs, ArrayItemIndex rhs) {
   return arrays[lhs.array_id]->Value(lhs.id) < arrays[rhs.array_id]->Value(rhs.id);
 }
 
 template <typename ArrayType>
-bool CompareViewsFromArrays(std::vector<std::shared_ptr<ArrayType>> arrays,
-                            ArrayItemIndex lhs, ArrayItemIndex rhs) {
+bool CompareViews(std::vector<std::shared_ptr<ArrayType>> arrays, ArrayItemIndex lhs,
+                  ArrayItemIndex rhs) {
   return arrays[lhs.array_id]->GetView(lhs.id) < arrays[rhs.array_id]->GetView(rhs.id);
 }
 
@@ -96,8 +84,7 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
   using ArrayType = typename TypeTraits<ArrowType>::ArrayType;
 
  public:
-  explicit SortArraysToIndicesKernelImpl(Comparator s_compare, Comparator m_compare)
-      : s_compare_(s_compare), m_compare_(m_compare) {}
+  explicit SortArraysToIndicesKernelImpl(Comparator compare) : compare_(compare) {}
 
   Status SortArraysToIndices(FunctionContext* ctx,
                              std::vector<std::shared_ptr<Array>> values,
@@ -116,9 +103,9 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
   std::shared_ptr<DataType> out_type() const { return type_; }
 
  private:
-  Comparator s_compare_;
-  Comparator m_compare_;
+  Comparator compare_;
   std::vector<std::shared_ptr<ArrayType>> typed_arrays_;
+  uint64_t merge_time = 0;
 
   std::pair<ArrayItemIndex*, ArrayItemIndex*> merge(
       std::vector<std::pair<ArrayItemIndex*, ArrayItemIndex*>>::iterator
@@ -126,6 +113,7 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
       std::vector<std::pair<ArrayItemIndex*, ArrayItemIndex*>>::iterator
           arrays_valid_range_end) {
     auto size = arrays_valid_range_end - arrays_valid_range_begin;
+    // std::cout << "merge of size " << size << std::endl;
     std::pair<ArrayItemIndex*, ArrayItemIndex*> left;
     std::pair<ArrayItemIndex*, ArrayItemIndex*> right;
     if (size > 2) {
@@ -135,7 +123,7 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
       right = merge(arrays_valid_range_middle, arrays_valid_range_end);
     } else if (size == 2) {
       left = *arrays_valid_range_begin;
-      right = *arrays_valid_range_end;
+      right = *(arrays_valid_range_end - 1);
     } else {
       // only one item
       return *arrays_valid_range_begin;
@@ -143,18 +131,33 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
     auto left_size = left.second - left.first;
     auto right_size = right.second - right.first;
 
+    // std::cout << "left begin is " << left.first << ", end is " << left.second
+    //          << std::endl;
+    // std::cout << "right begin is " << right.first << ", end is " << right.second
+    //          << std::endl;
+    // std::cout << "left_size is " << left_size << ", right_size is " << right_size
+    //          << std::endl;
     ArrayItemIndex* left_tmp = new ArrayItemIndex[left_size];
-    std::memcpy(left_tmp, left.first, left_size);
+    memcpy(left_tmp, left.first, left_size * sizeof(ArrayItemIndex));
     ArrayItemIndex* right_tmp = new ArrayItemIndex[right_size];
-    std::memcpy(right_tmp, right.first, right_size);
+    memcpy(right_tmp, right.first, right_size * sizeof(ArrayItemIndex));
 
+    auto start_merge = std::chrono::steady_clock::now();
     std::set_union(left_tmp, left_tmp + left_size, right_tmp, right_tmp + right_size,
-                   std::back_inserter(left.first),
-                   [this](ArrayItemIndex left, ArrayItemIndex right) {
-                     return m_compare_(typed_arrays_, left, right);
+                   left.first, [this](ArrayItemIndex left, ArrayItemIndex right) {
+                     return typed_arrays_[left.array_id]->GetView(left.id) <
+                            typed_arrays_[right.array_id]->GetView(right.id);
                    });
+    auto end_merge = std::chrono::steady_clock::now();
+    merge_time +=
+        std::chrono::duration_cast<std::chrono::microseconds>(end_merge - start_merge)
+            .count();
     delete[] left_tmp;
     delete[] right_tmp;
+
+    assert((left.first + left_size + right_size) == right.second);
+    // std::cout << "return begin is " << left.first << ", end is " << right.second
+    //          << std::endl;
     return std::make_pair(left.first, right.second);
   }
 
@@ -180,9 +183,12 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
     int64_t array_id = 0;
     int64_t null_count_total = 0;
     int64_t indices_i = 0;
+    uint64_t array_sort = 0;
 
     auto start_prepare = std::chrono::steady_clock::now();
     for (auto array : values) {
+      auto typed_array = std::dynamic_pointer_cast<ArrayType>(array);
+      typed_arrays_.push_back(typed_array);
       auto array_begin = indices_begin + indices_i;
       for (int64_t i = 0; i < array->length(); i++) {
         if (!array->IsNull(i)) {
@@ -197,11 +203,20 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
       }
       // first round sort
       auto array_end = indices_begin + indices_i;
+      auto start_sort = std::chrono::steady_clock::now();
       std::stable_sort(array_begin, array_end,
-                       [array, this](ArrayItemIndex left, ArrayItemIndex right) {
-                         return s_compare_(array, left, right);
+                       [typed_array, this](ArrayItemIndex left, ArrayItemIndex right) {
+                         return typed_array->GetView(left.id) <
+                                typed_array->GetView(right.id);
                        });
-      typed_arrays_.push_back(std::dynamic_pointer_cast<ArrayType>(array));
+      auto end_sort = std::chrono::steady_clock::now();
+      auto tmp_time =
+          std::chrono::duration_cast<std::chrono::microseconds>(end_sort - start_sort)
+              .count();
+      std::cout << "sort of " << array_end - array_begin << " items took " << tmp_time
+                << " us." << std::endl;
+      array_sort += tmp_time;
+      // std::cout << "begin is " << array_begin << ", end is " << array_end << std::endl;
       arrays_valid_range.push_back(std::make_pair(array_begin, array_end));
       array_id++;
     }
@@ -216,8 +231,9 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
             .count();
     auto sort =
         std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << "prepare took " << prepare << " us, sort took " << sort << " us."
-              << std::endl;
+    std::cout << "prepare took " << prepare << " us, includes array sort " << array_sort
+              << " us, sort took " << sort << " us, includes merge took " << merge_time
+              << " us." << std::endl;
 
     *offsets = std::make_shared<FixedSizeBinaryArray>(
         std::make_shared<FixedSizeBinaryType>(sizeof(ArrayItemIndex) / sizeof(int32_t)),
@@ -226,11 +242,10 @@ class SortArraysToIndicesKernelImpl : public SortArraysToIndicesKernel {
   }
 };
 
-template <typename ArrowType, typename SComparator, typename MComparator>
-SortArraysToIndicesKernelImpl<ArrowType, SComparator, MComparator>*
-MakeSortArraysToIndicesKernelImpl(SComparator s_comparator, MComparator m_comparator) {
-  return new SortArraysToIndicesKernelImpl<ArrowType, SComparator, MComparator>(
-      s_comparator, m_comparator);
+template <typename ArrowType, typename Comparator>
+SortArraysToIndicesKernelImpl<ArrowType, Comparator>* MakeSortArraysToIndicesKernelImpl(
+    Comparator comparator) {
+  return new SortArraysToIndicesKernelImpl<ArrowType, Comparator>(comparator);
 }
 
 Status SortArraysToIndicesKernel::Make(const std::shared_ptr<DataType>& value_type,
